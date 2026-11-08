@@ -138,8 +138,8 @@ function newGame() {
   winOverlay.hidden = true;
   board.replaceChildren();
   board.classList.toggle("board--4x4", pairCount === 8);
-  board.classList.toggle("board--4x7", pairCount === 14);
-  gameModeLabel.textContent = pairCount === 8 ? "CLÁSSICO · 4×4" : "DESAFIO · 4×7";
+  board.classList.toggle("board--4x6", pairCount === 12);
+  gameModeLabel.textContent = pairCount === 8 ? "CLÁSSICO · 4×4" : "DESAFIO · 4×6";
 
   const chosenPhotos = shuffle(photos).slice(0, pairCount);
   const cards = shuffle([...chosenPhotos, ...chosenPhotos]);

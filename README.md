@@ -20,6 +20,6 @@ Como o repositório é público, o código do jogo ficará visível. As fotos se
 
 Na tela inicial, clique em **Selecionar pasta de fotos**. Selecione a pasta que contém suas imagens; o navegador pedirá acesso para carregá-las. São aceitos formatos de foto comuns, como JPG, PNG, AVIF, BMP e WebP. As fotos não são enviadas a um servidor: ficam disponíveis somente na aba aberta e precisam ser selecionadas novamente depois de atualizar ou fechar a página. Escolha um tabuleiro e clique em **Começar a jogar** para abrir a partida em tela cheia.
 
-O jogo sorteia fotos diferentes da pasta em cada partida. O modo Clássico (4×4) precisa de pelo menos 8 imagens; o Desafio (4×7, com 28 cartas) precisa de 14. Cada foto aparece em duas cartas. Os nomes dos arquivos não são mostrados no jogo.
+O jogo sorteia fotos diferentes da pasta em cada partida. O modo Clássico (4×4) precisa de pelo menos 8 imagens; o Desafio (4×6, com 24 cartas) precisa de 12. Cada foto aparece em duas cartas. Os nomes dos arquivos não são mostrados no jogo.
 
-O tabuleiro máximo é 4×7 (28 cartas) para manter as cartas legíveis e confortáveis para toque em celulares. O jogo tenta usar a tela cheia nativa quando disponível e mantém um layout expandido como alternativa.
+Nos dois modos, as cartas usam formato retrato para combinar com as fotos. O tabuleiro máximo é 4×6 (24 cartas), mantendo as cartas legíveis e confortáveis para toque em celulares. O jogo tenta usar a tela cheia nativa quando disponível e mantém um layout expandido como alternativa.

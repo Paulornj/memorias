@@ -335,8 +335,8 @@ h2 { margin: 12px 0; font-size: 39px; line-height: 1.02; }
 .game-screen .stat-label { font-size: 8px; }
 .game-screen .stat-value { font-size: 14px; }
 .game-board { width: min(100%, 560px); max-width: 100%; min-height: 0; margin: 0 auto; align-self: center; gap: clamp(4px, 1.1vmin, 9px); }
-.game-board.board--4x4 { width: min(100%, calc(100dvh - 160px)); aspect-ratio: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); }
-.game-board.board--4x7 { width: min(100%, calc((100dvh - 170px) * 4 / 7)); max-height: calc(100dvh - 170px); aspect-ratio: 4 / 7; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(7, minmax(0, 1fr)); }
+.game-board.board--4x4 { width: min(100%, calc((100dvh - 160px) * 4 / 5)); aspect-ratio: 4 / 5; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); }
+.game-board.board--4x6 { width: min(100%, calc((100dvh - 170px) * 8 / 15)); max-height: calc(100dvh - 170px); aspect-ratio: 8 / 15; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); }
 .game-screen .memory-card { min-width: 0; min-height: 0; aspect-ratio: auto; border-radius: clamp(6px, 1.4vmin, 11px); touch-action: manipulation; }
 .game-screen .card-face { border-radius: inherit; }
 .game-screen .card-back::before { inset: 4px; border-radius: 5px; }
@@ -359,8 +359,8 @@ h2 { margin: 12px 0; font-size: 39px; line-height: 1.02; }
   .game-actions { gap: 5px; }
   .game-actions .new-game-button { gap: 5px; padding: 0 8px; font-size: 9px; }
   .game-meta { width: min(100%, 440px); }
-  .game-board.board--4x4 { width: min(100%, calc(100dvh - 150px)); }
-  .game-board.board--4x7 { width: min(100%, calc((100dvh - 170px) * 4 / 7)); max-height: calc(100dvh - 170px); }
+  .game-board.board--4x4 { width: min(100%, calc((100dvh - 150px) * 4 / 5)); }
+  .game-board.board--4x6 { width: min(100%, calc((100dvh - 170px) * 8 / 15)); max-height: calc(100dvh - 170px); }
   .game-screen .game-bottom { font-size: 8px; }
 }
 
@@ -381,13 +381,13 @@ h2 { margin: 12px 0; font-size: 39px; line-height: 1.02; }
   .brand--game .brand-mark { width: 20px; height: 20px; }
   .game-actions .icon-button { width: 30px; height: 30px; }
   .game-actions .new-game-button { min-height: 30px; font-size: 8px; }
-  .game-board.board--4x7 { width: min(100%, calc((100dvh - 170px) * 4 / 7)); max-height: calc(100dvh - 170px); }
+  .game-board.board--4x6 { width: min(100%, calc((100dvh - 170px) * 8 / 15)); max-height: calc(100dvh - 170px); }
 }
 
 @media (max-height: 620px) {
   .game-screen { gap: 4px; }
   .game-topbar { min-height: 34px; }
   .game-topbar .game-exit-button, .game-actions .icon-button { height: 30px; }
-  .game-board.board--4x7 { width: min(100%, calc((100dvh - 170px) * 4 / 7)); max-height: calc(100dvh - 170px); }
+  .game-board.board--4x6 { width: min(100%, calc((100dvh - 170px) * 8 / 15)); max-height: calc(100dvh - 170px); }
   .game-screen .game-bottom { min-height: 17px; }
 }
