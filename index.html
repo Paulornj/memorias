@@ -16,6 +16,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
+    <script src="./supabase-config.js" defer></script>
     <script src="./app.js" defer></script>
   </head>
   <body>
@@ -34,7 +35,10 @@
             </span>
             <span>reelix<span class="brand-dot">.</span></span>
           </a>
-          <span class="topbar-note"><span class="live-dot"></span> seu álbum, seu jogo</span>
+          <div class="topbar-actions">
+            <span class="topbar-note"><span class="live-dot"></span> seu álbum, seu jogo</span>
+            <button type="button" class="leaderboard-open" id="open-leaderboard">Placar <span aria-hidden="true">↗</span></button>
+          </div>
         </header>
 
         <div class="setup-content">
@@ -127,10 +131,38 @@
             <p class="eyebrow">MISSÃO CUMPRIDA</p>
             <h2 id="win-title">Você tem<br /><span>olhos de águia.</span></h2>
             <p class="win-summary" id="win-summary"></p>
+            <form class="score-submit-form" id="score-submit-form">
+              <label for="player-name">Seu nome ou apelido</label>
+              <input id="player-name" name="player-name" type="text" minlength="2" maxlength="20" autocomplete="nickname" required />
+              <small class="score-privacy-note">Seu nome será público no placar; suas fotos não são enviadas.</small>
+              <p class="score-submit-status" id="score-submit-status" role="status" aria-live="polite"></p>
+              <button type="submit" class="start-button score-submit-button" id="submit-score">Salvar no placar</button>
+            </form>
+            <button type="button" class="leaderboard-link" id="leaderboard-from-win">Ver placar</button>
             <button type="button" class="new-game-button" id="play-again">Jogar novamente <span aria-hidden="true">↗</span></button>
           </div>
         </div>
       </section>
+
+      <div class="leaderboard-overlay" id="leaderboard-overlay" hidden>
+        <section class="leaderboard-panel" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
+          <header class="leaderboard-header">
+            <div>
+              <p class="eyebrow">COMPETIÇÃO</p>
+              <h2 id="leaderboard-title">Placar de memórias</h2>
+            </div>
+            <button type="button" class="icon-button leaderboard-close" id="close-leaderboard" aria-label="Fechar placar">×</button>
+          </header>
+          <p class="leaderboard-description">As melhores partidas da comunidade. Suas fotos nunca são compartilhadas.</p>
+          <div class="leaderboard-tabs" role="group" aria-label="Modo do placar">
+            <button type="button" class="leaderboard-tab is-active" data-leaderboard-pairs="8" aria-pressed="true">Clássico · 4×4</button>
+            <button type="button" class="leaderboard-tab" data-leaderboard-pairs="12" aria-pressed="false">Desafio · 4×6</button>
+          </div>
+          <p class="leaderboard-status" id="leaderboard-status" role="status" aria-live="polite"></p>
+          <ol class="leaderboard-list" id="leaderboard-list"></ol>
+          <p class="leaderboard-footnote">Pontuação: 10.000 pontos, menos jogadas extras e tempo.</p>
+        </section>
+      </div>
     </main>
   </body>
 </html>

@@ -16,6 +16,14 @@ const setupScreen = document.querySelector("#setup-screen");
 const gameScreen = document.querySelector("#game-screen");
 const gameModeLabel = document.querySelector("#game-mode-label");
 const levelButtons = [...document.querySelectorAll(".level-button")];
+const leaderboardOverlay = document.querySelector("#leaderboard-overlay");
+const leaderboardList = document.querySelector("#leaderboard-list");
+const leaderboardStatus = document.querySelector("#leaderboard-status");
+const leaderboardTabs = [...document.querySelectorAll(".leaderboard-tab")];
+const scoreForm = document.querySelector("#score-submit-form");
+const playerNameInput = document.querySelector("#player-name");
+const scoreSubmitStatus = document.querySelector("#score-submit-status");
+const scoreSubmitButton = document.querySelector("#submit-score");
 
 let photos = [];
 let pairCount = 8;
@@ -27,6 +35,148 @@ let seconds = 0;
 let timerId = null;
 let soundEnabled = false;
 let audioContext = null;
+let matchedReveal = null;
+let matchedRevealTimeout = null;
+let leaderboardPairCount = 8;
+let lastRound = null;
+
+const SCORE_BASE = 10000;
+const EXTRA_MOVE_PENALTY = 250;
+const SECOND_PENALTY = 10;
+
+function getSupabaseConfig() {
+  const config = window.REELIX_SUPABASE;
+  if (!config || typeof config.url !== "string" || typeof config.publicKey !== "string" || !config.url || !config.publicKey) {
+    return null;
+  }
+
+  const url = new URL(config.url);
+  if (!["https:", "http:"].includes(url.protocol)) {
+    throw new Error("A URL do Supabase precisa usar HTTPS.");
+  }
+  const publicKey = config.publicKey.trim();
+  const isLegacyAnonKey = publicKey.startsWith("eyJ");
+  if (publicKey.startsWith("sb_secret_")) {
+    throw new Error("Chaves secret não podem ser usadas no navegador.");
+  }
+  if (!publicKey.startsWith("sb_publishable_") && !isLegacyAnonKey) {
+    throw new Error("Use uma chave publishable ou anon pública do Supabase.");
+  }
+  if (isLegacyAnonKey) {
+    const claims = JSON.parse(atob(publicKey.split(".")[1]));
+    if (claims.role !== "anon") throw new Error("Use a chave anon, nunca uma service_role.");
+  }
+  return { url: url.toString().replace(/\/$/, ""), publicKey, isLegacyAnonKey };
+}
+
+function isSupabaseConfigured() {
+  try {
+    return getSupabaseConfig() !== null;
+  } catch (error) {
+    console.error("Configuração do Supabase inválida.", error);
+    return false;
+  }
+}
+
+function getSupabaseStatusMessage() {
+  try {
+    return getSupabaseConfig() ? null : "O placar online ainda não está configurado. Configure a URL e a chave pública no arquivo supabase-config.js.";
+  } catch (error) {
+    console.error("Configuração do Supabase inválida.", error);
+    return error.message;
+  }
+}
+
+function calculateScore(pairs, moveCount, elapsedSeconds) {
+  const extraMoves = Math.max(0, moveCount - pairs);
+  return Math.max(0, SCORE_BASE - extraMoves * EXTRA_MOVE_PENALTY - elapsedSeconds * SECOND_PENALTY);
+}
+
+function formatScore(score) {
+  return new Intl.NumberFormat("pt-BR").format(score);
+}
+
+async function requestSupabase(path, options = {}) {
+  const config = getSupabaseConfig();
+  if (!config) throw new Error("O placar online ainda não foi configurado.");
+
+  const response = await fetch(`${config.url}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: config.publicKey,
+      ...(config.isLegacyAnonKey ? { Authorization: `Bearer ${config.publicKey}` } : {}),
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers
+    }
+  });
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Supabase respondeu ${response.status}: ${details || response.statusText}`);
+  }
+  if (response.status === 204) return null;
+  const body = await response.text();
+  return body ? JSON.parse(body) : null;
+}
+
+function renderLeaderboard(rows) {
+  leaderboardList.replaceChildren();
+  if (rows.length === 0) {
+    leaderboardStatus.textContent = "Ainda não há pontuações neste modo. Seja o primeiro!";
+    return;
+  }
+
+  leaderboardStatus.textContent = `${rows.length} melhores partidas`;
+  rows.forEach((row, index) => {
+    const item = document.createElement("li");
+    item.className = "leaderboard-row";
+    const rank = document.createElement("span");
+    rank.className = "leaderboard-rank";
+    rank.textContent = String(index + 1).padStart(2, "0");
+    const player = document.createElement("span");
+    player.className = "leaderboard-player";
+    const name = document.createElement("strong");
+    name.textContent = row.player_name;
+    const detail = document.createElement("small");
+    detail.textContent = `${row.pair_count} pares · ${formatTime(row.elapsed_seconds)} · ${row.moves} jogadas`;
+    player.append(name, detail);
+    const score = document.createElement("strong");
+    score.className = "leaderboard-score";
+    score.textContent = formatScore(row.score);
+    item.append(rank, player, score);
+    leaderboardList.append(item);
+  });
+}
+
+async function loadLeaderboard(pairs = leaderboardPairCount) {
+  leaderboardPairCount = pairs;
+  leaderboardTabs.forEach((tab) => {
+    const active = Number(tab.dataset.leaderboardPairs) === pairs;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-pressed", active.toString());
+  });
+  leaderboardList.replaceChildren();
+  leaderboardStatus.textContent = "Carregando placar…";
+  const setupMessage = getSupabaseStatusMessage();
+  if (setupMessage) {
+    leaderboardStatus.textContent = setupMessage;
+    return;
+  }
+
+  const mode = pairs === 8 ? "4x4" : "4x6";
+  const query = new URLSearchParams({
+    select: "player_name,pair_count,score,moves,elapsed_seconds,created_at",
+    mode: `eq.${mode}`,
+    order: "score.desc,created_at.asc",
+    limit: "20"
+  });
+  try {
+    const rows = await requestSupabase(`reelix_scores?${query}`);
+    renderLeaderboard(rows);
+  } catch (error) {
+    console.error("Não foi possível carregar o placar.", error);
+    leaderboardStatus.textContent = `Não foi possível carregar o placar: ${error.message}`;
+  }
+}
 
 function shuffle(items) {
   const shuffled = [...items];
@@ -113,18 +263,91 @@ function createCard(photo, index) {
     image.alt = "Não foi possível carregar esta foto";
   };
 
-  const label = document.createElement("span");
-  label.className = "card-label";
-  label.textContent = photo.name;
-  front.append(image, label);
+  front.append(image);
   inner.append(back, front);
   card.append(inner);
   card.addEventListener("click", () => revealCard(card));
   return card;
 }
 
+function clearMatchedReveal() {
+  if (matchedRevealTimeout !== null) {
+    window.clearTimeout(matchedRevealTimeout);
+    matchedRevealTimeout = null;
+  }
+  if (matchedReveal) {
+    matchedReveal.getAnimations().forEach((animation) => animation.cancel());
+    matchedReveal.remove();
+    matchedReveal = null;
+  }
+}
+
+function showMatchedPhoto(card) {
+  clearMatchedReveal();
+
+  const source = card.querySelector(".card-photo");
+  if (!source) return;
+
+  const start = card.getBoundingClientRect();
+  const aspectRatio = source.naturalWidth && source.naturalHeight
+    ? source.naturalWidth / source.naturalHeight
+    : start.width / start.height;
+  const maxWidth = window.innerWidth * 0.9;
+  const maxHeight = window.innerHeight * 0.9;
+  const width = Math.min(maxWidth, maxHeight * aspectRatio);
+  const height = width / aspectRatio;
+  const left = (window.innerWidth - width) / 2;
+  const top = (window.innerHeight - height) / 2;
+
+  const overlay = document.createElement("div");
+  overlay.className = "matched-photo-reveal";
+  overlay.setAttribute("aria-hidden", "true");
+  const image = document.createElement("img");
+  image.src = source.currentSrc || source.src;
+  image.alt = "";
+  image.style.left = `${start.left}px`;
+  image.style.top = `${start.top}px`;
+  image.style.width = `${start.width}px`;
+  image.style.height = `${start.height}px`;
+  overlay.append(image);
+  gameScreen.append(overlay);
+  matchedReveal = overlay;
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  image.animate([
+    { left: `${start.left}px`, top: `${start.top}px`, width: `${start.width}px`, height: `${start.height}px`, borderRadius: "8px" },
+    { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px`, borderRadius: "18px" }
+  ], {
+    duration: reducedMotion ? 1 : 420,
+    easing: "cubic-bezier(.16, 1, .3, 1)",
+    fill: "forwards"
+  });
+  overlay.animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: reducedMotion ? 1 : 300,
+    easing: "ease-out",
+    fill: "forwards"
+  });
+
+  matchedRevealTimeout = window.setTimeout(() => {
+    if (matchedReveal !== overlay) return;
+    const fadeOut = overlay.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: reducedMotion ? 1 : 180,
+      easing: "ease-in",
+      fill: "forwards"
+    });
+    fadeOut.onfinish = () => {
+      if (matchedReveal !== overlay) return;
+      overlay.remove();
+      matchedReveal = null;
+      matchedRevealTimeout = null;
+    };
+  }, (reducedMotion ? 1 : 420) + 500);
+}
+
 function newGame() {
   if (photos.length < pairCount) return;
+  clearMatchedReveal();
+  lastRound = null;
   stopTimer();
   firstCard = null;
   locked = false;
@@ -151,8 +374,7 @@ function revealCard(card) {
   if (locked || card === firstCard || card.classList.contains("is-matched") || card.classList.contains("is-flipped")) return;
   startTimer();
   card.classList.add("is-flipped");
-  const photo = photos.find((item) => item.id === card.dataset.photo);
-  card.setAttribute("aria-label", `${photo?.name || "Foto"}, revelada`);
+  card.setAttribute("aria-label", `Carta revelada`);
   playTone(480);
 
   if (!firstCard) {
@@ -165,8 +387,9 @@ function revealCard(card) {
   if (firstCard.dataset.photo === card.dataset.photo) {
     firstCard.classList.add("is-matched");
     card.classList.add("is-matched");
-    firstCard.setAttribute("aria-label", `${photo?.name || "Foto"}, par encontrado`);
-    card.setAttribute("aria-label", `${photo?.name || "Foto"}, par encontrado`);
+    firstCard.setAttribute("aria-label", "Par encontrado");
+    card.setAttribute("aria-label", "Par encontrado");
+    showMatchedPhoto(card);
     firstCard = null;
     matches += 1;
     matchesElement.textContent = matches.toString();
@@ -193,11 +416,72 @@ function finishGame() {
   const previousBest = Number(localStorage.getItem(bestKey));
   if (!previousBest || moves < previousBest) localStorage.setItem(bestKey, moves.toString());
   updateBestScore();
-  winSummary.textContent = `Você encontrou ${pairCount} pares em ${formatTime(seconds)}, com ${moves} movimentos.`;
+  const score = calculateScore(pairCount, moves, seconds);
+  lastRound = { pairCount, moves, seconds, score };
+  winSummary.textContent = `Você encontrou ${pairCount} pares em ${formatTime(seconds)}, com ${moves} jogadas e ${formatScore(score)} pontos.`;
+  playerNameInput.value = localStorage.getItem("reelix-player-name") || "";
+  const setupMessage = getSupabaseStatusMessage();
+  scoreSubmitButton.disabled = Boolean(setupMessage);
+  scoreSubmitStatus.textContent = setupMessage || "Sua pontuação será exibida no ranking público.";
   window.setTimeout(() => {
     winOverlay.hidden = false;
-    document.querySelector("#play-again").focus();
+    playerNameInput.focus();
   }, 650);
+}
+
+async function submitScore(event) {
+  event.preventDefault();
+  if (!lastRound || !scoreForm.reportValidity()) return;
+
+  const playerName = playerNameInput.value.trim();
+  if (playerName.length < 2 || playerName.length > 20) {
+    scoreSubmitStatus.textContent = "Use um nome ou apelido entre 2 e 20 caracteres.";
+    return;
+  }
+
+  scoreSubmitButton.disabled = true;
+  scoreSubmitStatus.textContent = "Salvando sua pontuação…";
+  try {
+    await requestSupabase("reelix_scores", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        player_name: playerName,
+        mode: lastRound.pairCount === 8 ? "4x4" : "4x6",
+        pair_count: lastRound.pairCount,
+        score: lastRound.score,
+        moves: lastRound.moves,
+        elapsed_seconds: lastRound.seconds
+      })
+    });
+    localStorage.setItem("reelix-player-name", playerName);
+    scoreSubmitStatus.textContent = "Pontuação salva! Boa sorte no ranking.";
+    document.querySelector("#leaderboard-from-win").focus();
+  } catch (error) {
+    console.error("Não foi possível salvar a pontuação.", error);
+    scoreSubmitStatus.textContent = `${error.message} Confira a configuração do placar e tente novamente.`;
+    scoreSubmitButton.disabled = !isSupabaseConfigured();
+  }
+}
+
+function openLeaderboard(pairs = pairCount) {
+  document.documentElement.classList.add("has-modal");
+  document.body.classList.add("has-modal");
+  leaderboardTabs.forEach((tab) => {
+    const active = Number(tab.dataset.leaderboardPairs) === pairs;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-pressed", active.toString());
+  });
+  leaderboardOverlay.hidden = false;
+  document.querySelector("#close-leaderboard").focus();
+  loadLeaderboard(pairs);
+}
+
+function closeLeaderboard() {
+  leaderboardOverlay.hidden = true;
+  document.documentElement.classList.remove("has-modal");
+  document.body.classList.remove("has-modal");
+  document.querySelector("#open-leaderboard").focus();
 }
 
 function updatePhotoControls() {
@@ -232,6 +516,7 @@ async function startGame() {
 
 async function exitGame() {
   stopTimer();
+  clearMatchedReveal();
   winOverlay.hidden = true;
   try {
     if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
@@ -267,7 +552,6 @@ folderInput.addEventListener("change", () => {
   photos.forEach((photo) => URL.revokeObjectURL(photo.url));
   photos = files.map((file, index) => ({
     id: `photo-${index}`,
-    name: `Foto ${index + 1}`,
     url: URL.createObjectURL(file)
   }));
   folderButtonLabel.textContent = "Trocar pasta de fotos";
@@ -288,6 +572,23 @@ folderInput.addEventListener("change", () => {
 document.querySelector("#choose-folder").addEventListener("click", choosePhotoFolder);
 document.querySelector("#new-game").addEventListener("click", newGame);
 document.querySelector("#play-again").addEventListener("click", newGame);
+document.querySelector("#open-leaderboard").addEventListener("click", () => openLeaderboard());
+document.querySelector("#close-leaderboard").addEventListener("click", closeLeaderboard);
+document.querySelector("#leaderboard-from-win").addEventListener("click", async () => {
+  const pairs = lastRound?.pairCount || pairCount;
+  await exitGame();
+  openLeaderboard(pairs);
+});
+document.querySelector("#score-submit-form").addEventListener("submit", submitScore);
+leaderboardOverlay.addEventListener("click", (event) => {
+  if (event.target === leaderboardOverlay) closeLeaderboard();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !leaderboardOverlay.hidden) closeLeaderboard();
+});
+leaderboardTabs.forEach((tab) => {
+  tab.addEventListener("click", () => loadLeaderboard(Number(tab.dataset.leaderboardPairs)));
+});
 levelButtons.forEach((button) => {
   button.addEventListener("click", () => {
     if (button.disabled) return;
